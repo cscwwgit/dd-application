@@ -1,0 +1,49 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+/* MapboxDraw toolbar sits on left side of the map */
+.mapboxgl-ctrl-group {
+  background: #1e293b !important;
+  border: 1px solid #334155 !important;
+}
+
+.mapboxgl-ctrl-group button {
+  color: #94a3b8 !important;
+}
+
+.mapboxgl-ctrl-group button:hover {
+  background: #334155 !important;
+  color: #f8fafc !important;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
