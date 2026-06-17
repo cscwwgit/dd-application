@@ -16,6 +16,14 @@ Rather than building a purely visual map demo, I focused on a **backend-authorit
 
 ---
 
+## Demo Video
+
+A narrated demo video is available in the GitHub release assets:
+
+[Watch/download the RZAM demo video](https://github.com/cscwwgit/dd-application/releases/tag/demo-v1)
+
+---
+
 ## Assessment Coverage
 
 | Prompt Requirement                                                                | Implementation                                                                                                                                |
