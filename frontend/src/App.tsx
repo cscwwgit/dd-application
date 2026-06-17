@@ -100,11 +100,15 @@ export default function App() {
           overflow: 'hidden',
         }}>
           {/* Details panel */}
-          <div style={{ flexShrink: 0, borderBottom: '1px solid #1e293b', maxHeight: '40%', overflowY: 'auto' }}>
+          <div
+            key={selected ? `${selected.type}:${selected.id}` : 'none'}
+            style={{ flexShrink: 0, borderBottom: '1px solid #1e293b', maxHeight: '40%', overflowY: 'auto' }}
+          >
             <DetailsPanel
               selected={selected}
               assets={assets}
               drones={drones}
+              zones={zones}
               onClose={clearSelection}
             />
           </div>

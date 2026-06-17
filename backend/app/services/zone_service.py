@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -11,6 +12,11 @@ from app.config import DB_PATH
 from app.models import RestrictedZone, ZoneCreate
 
 _zone_counter = 0
+
+
+def _extract_zone_number(name: str) -> int | None:
+    m = re.match(r"Restricted Zone (\d+)$", name)
+    return int(m.group(1)) if m else None
 
 
 def _next_zone_name() -> str:
@@ -35,6 +41,12 @@ class ZoneService:
                 created_at=datetime.fromisoformat(row[3]),
             )
             self._zones[zone.id] = zone
+
+        # Seed the default-name counter past any existing "Restricted Zone N"
+        # names so newly created zones don't collide after a persisted reload.
+        global _zone_counter
+        existing = [n for z in self._zones.values() if (n := _extract_zone_number(z.name)) is not None]
+        _zone_counter = max([_zone_counter, *existing], default=_zone_counter)
 
     async def create_zone(self, payload: ZoneCreate) -> RestrictedZone:
         zone_id = str(uuid.uuid4())

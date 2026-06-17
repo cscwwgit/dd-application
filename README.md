@@ -23,11 +23,11 @@ Rather than building a purely visual map demo, I focused on a **backend-authorit
 | Connect to a public API or create a telemetry generator for 100+ real-time assets | Deterministic telemetry generator creates 130 moving aircraft/vehicle assets and streams them at 1 Hz                                         |
 | Display real-time data on a map interface                                         | React + TypeScript frontend renders live asset, zone, drone, history, and prediction layers with MapLibre GL JS                               |
 | Allow interactive polygons / restricted zones                                     | Operator draws restricted zones directly on the map; zones are persisted to SQLite and evaluated every tick                                   |
-| Calculate Time-to-Entry based on current vector                                   | Backend projects each asset's current heading/speed forward in 10-second increments over a 10-minute horizon                                  |
+| Calculate Time-to-Entry based on current vector                                   | Backend projects each asset's current heading/speed over a 10-minute horizon, using 1-second resolution for near-term TTE and coarser sampling beyond that window.                                  |
 | Change symbology by threat level                                                  | Assets render as `normal`, `warning`, or `critical` based on backend-calculated tactical state                                                |
 | Render historical trajectory on asset click                                       | Selected asset shows bounded five-minute history as a faded polyline                                                                          |
 | Project predicted path from recent heading/velocity history                       | Selected asset predicted path uses recent trajectory history to estimate speed and turn rate, producing curved projections for banking assets |
-| Show asset info panel                                                             | Details panel shows callsign, type, heading, speed, altitude, threat level, TTE, and distance to nearest zone                                 |
+| Show asset info panel                                                             | Details panel shows callsign, type, position, altitude, heading, speed, threat level, TTE, nearest zone distance, and nearest zone name.                                 |
 | Simulated autonomous drone follows user-defined patrol path                       | Operator can draw a multi-waypoint patrol path; drone follows it while no critical target exists                                              |
 | Drone recalculates heading/velocity to shadow nearest breached asset              | Drone acquires the nearest critical asset, recomputes heading and dynamic shadow point every tick, and maintains standoff behind the target   |
 | Event/audit visibility                                                            | Event log records warning, breach, drone-dispatch, and drone-shadowing transitions                                                            |
@@ -114,7 +114,7 @@ Start the backend:
 
 ```bash
 cd backend
-python -m venv .venv
+python3.12 -m venv .venv
 
 # Windows PowerShell:
 .venv\Scripts\Activate.ps1
@@ -176,7 +176,7 @@ The backend test suite covers:
 | Dynamic shadowing         | heading recomputation and transition to `shadowing`              |
 | Return-to-patrol          | drone resumes patrol when threats clear                          |
 
-At final review, the backend suite contained 26 tests.
+At final review, the backend suite contained 31 tests.
 
 ---
 

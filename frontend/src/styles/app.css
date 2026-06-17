@@ -15,19 +15,28 @@ body {
   color: #e2e8f0;
 }
 
-/* MapboxDraw toolbar sits on left side of the map */
+/* Map control groups (MapLibre + Mapbox class names) */
+.maplibregl-ctrl-group,
 .mapboxgl-ctrl-group {
   background: #1e293b !important;
   border: 1px solid #334155 !important;
 }
 
+.maplibregl-ctrl-group button,
 .mapboxgl-ctrl-group button {
   color: #94a3b8 !important;
+  background: #1e293b !important;
 }
 
+.maplibregl-ctrl-group button:hover,
 .mapboxgl-ctrl-group button:hover {
   background: #334155 !important;
   color: #f8fafc !important;
+}
+
+.maplibregl-ctrl button .maplibregl-ctrl-icon,
+.mapboxgl-ctrl button .mapboxgl-ctrl-icon {
+  filter: invert(1) opacity(0.75);
 }
 
 /* Scrollbar styling */

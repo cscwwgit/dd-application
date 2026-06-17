@@ -235,7 +235,7 @@ async def tick() -> None:
             ev = await event_store.add_event(
                 event_type="warning",
                 severity="warning",
-                message=f"{asset_label} approaching {zone_name} — ETA {tte}",
+                message=f"{asset_label} approaching {zone_name} — initial ETA {tte}",
                 asset_id=assessment.asset_id,
                 zone_id=assessment.nearest_zone_id,
             )

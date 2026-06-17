@@ -3,8 +3,10 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.models import AssetState
+from app.models import AssetState, ZoneCreate
+from app.services.event_store import EventStore
 from app.services.threat_analyzer import ThreatAnalyzer, assess_asset
+from app.services.zone_service import ZoneService
 
 ZONE = {
     "id": "zone-test",
@@ -187,3 +189,112 @@ def test_zone_created_around_existing_asset_creates_breach():
     result = assess_asset(asset, [ZONE])
     assert result.threat_level == "critical"
     assert result.nearest_zone_id == ZONE["id"]
+
+
+def test_near_term_tte_uses_one_second_resolution():
+    """
+    Near-term TTE must be reported at ~1-second resolution, not quantized to
+    coarse 10-second buckets. The asset is positioned just south of the zone's
+    65.0 boundary, heading due north, so the true entry time is ~57s.
+    """
+    # 100 m/s due north; ~5.69 km to the boundary → ~57s, deliberately not a 10s multiple.
+    asset = make_asset(lat=64.9488, lon=-95.0, heading=0.0, speed=100.0)
+    result = assess_asset(asset, [ZONE])
+
+    assert result.threat_level == "warning"
+    assert result.tte_seconds is not None
+    # Must land near the true crossing time within projection tolerance...
+    assert abs(result.tte_seconds - 57) <= 2
+    # ...and must NOT be a coarse 10-second bucket (the regression this guards).
+    assert result.tte_seconds % 10 != 0
+
+
+def test_zone_deletion_clears_current_threat_after_hysteresis():
+    """
+    Threat level reflects current tactical state. Deleting a zone removes it from
+    future evaluation: an asset that was critical only because of that zone must
+    drop out of critical after the hysteresis clear window, becoming normal when
+    no other zone applies.
+    """
+    from app.config import HYSTERESIS_TICKS
+
+    analyzer = ThreatAnalyzer()
+    asset = make_asset(lat=67.5, lon=-95.0)  # inside ZONE
+
+    # Establish critical while the zone is active.
+    raw = analyzer.analyze([asset], [ZONE])
+    smoothed = analyzer.apply_hysteresis(raw)
+    analyzer.get_transitions(smoothed)
+    assert smoothed[0].threat_level == "critical"
+
+    # Zone deleted: it is no longer part of the active zone set.
+    final = None
+    for _ in range(HYSTERESIS_TICKS + 2):
+        raw = analyzer.analyze([asset], [])
+        smoothed = analyzer.apply_hysteresis(raw)
+        analyzer.get_transitions(smoothed)
+        final = smoothed[0]
+
+    assert final is not None
+    assert final.threat_level != "critical"
+    assert final.threat_level == "normal"
+
+
+@pytest.mark.asyncio
+async def test_zone_deletion_preserves_historical_breach_event(tmp_path, monkeypatch):
+    """
+    Deleting a zone clears future evaluation but must NOT erase historical events.
+    The event log is an audit trail, not a mirror of current state — a breach
+    event survives deletion of the zone it referenced.
+    """
+    import aiosqlite
+
+    from app.db import CREATE_EVENTS_TABLE, CREATE_ZONES_TABLE
+
+    db_path = str(tmp_path / "test_rzam.db")
+    monkeypatch.setattr("app.services.event_store.DB_PATH", db_path)
+    monkeypatch.setattr("app.services.zone_service.DB_PATH", db_path)
+
+    async with aiosqlite.connect(db_path) as db:
+        await db.execute(CREATE_ZONES_TABLE)
+        await db.execute(CREATE_EVENTS_TABLE)
+        await db.commit()
+
+    zone_svc = ZoneService()
+    zone = await zone_svc.create_zone(
+        ZoneCreate(name="Restricted Zone 1", geojson=ZONE["geojson"])
+    )
+
+    store = EventStore()
+    await store.add_event(
+        event_type="breach",
+        severity="critical",
+        message="TEST01 breached Restricted Zone 1",
+        asset_id="asset-breach-1",
+        zone_id=zone.id,
+    )
+
+    # Delete the zone from active state.
+    deleted = await zone_svc.delete_zone(zone.id)
+    assert deleted is True
+    assert zone_svc.get_zone(zone.id) is None
+
+    # The breach event remains in the runtime recent buffer...
+    events = store.get_recent()
+    assert any(
+        e.event_type == "breach"
+        and e.asset_id == "asset-breach-1"
+        and e.zone_id == zone.id
+        for e in events
+    )
+
+    # ...and in the SQLite audit trail.
+    async with aiosqlite.connect(db_path) as db:
+        async with db.execute(
+            "SELECT event_type, asset_id, zone_id FROM events"
+        ) as cursor:
+            rows = await cursor.fetchall()
+    assert any(
+        r[0] == "breach" and r[1] == "asset-breach-1" and r[2] == zone.id
+        for r in rows
+    )

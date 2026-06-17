@@ -458,7 +458,9 @@ export default function MapView({
     if (!map || !layersReadyRef.current) return;
 
     clearSelectedFilter(map, 'assets-selected');
+    clearSelectedFilter(map, 'assets-selected-pulse');
     clearSelectedFilter(map, 'drones-selected');
+    clearSelectedFilter(map, 'drones-selected-pulse');
 
     if (!selected) {
       updateSource(map, 'history', { type: 'FeatureCollection', features: [] });
@@ -468,9 +470,32 @@ export default function MapView({
 
     if (selected.type === 'asset') {
       setSelectedFilter(map, 'assets-selected', selected.id);
+      setSelectedFilter(map, 'assets-selected-pulse', selected.id);
     } else if (selected.type === 'drone') {
       setSelectedFilter(map, 'drones-selected', selected.id);
+      setSelectedFilter(map, 'drones-selected-pulse', selected.id);
     }
+  }, [selected?.type, selected?.id]);
+
+  // ── Animate the selection pulse rings ──────────────────────────────
+  useEffect(() => {
+    if (!selected) return;
+    const layerId = selected.type === 'asset' ? 'assets-selected-pulse' : 'drones-selected-pulse';
+    let raf = 0;
+    const start = performance.now();
+    const animate = (now: number) => {
+      const map = mapRef.current;
+      if (map && layersReadyRef.current && map.getLayer(layerId)) {
+        const phase = ((now - start) % 1500) / 1500; // 0..1 over 1.5s
+        const radius = 15 + phase * 14;              // expand 15 → 29
+        const opacity = 0.8 * (1 - phase);           // fade out
+        map.setPaintProperty(layerId, 'circle-radius', radius);
+        map.setPaintProperty(layerId, 'circle-stroke-opacity', opacity);
+      }
+      raf = requestAnimationFrame(animate);
+    };
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
   }, [selected?.type, selected?.id]);
 
   // ── Fly to selected asset/drone once per selection change ───────────
@@ -620,6 +645,65 @@ export default function MapView({
           Click to add vertices · Double-click to finish · {vertexCount} point{vertexCount !== 1 ? 's' : ''} placed
         </div>
       )}
+
+      {/* ── Legend ────────────────────────────────────────────── */}
+      {!isDrawing && !isPatrolDrawing && (
+        <div style={{
+          position: 'absolute',
+          bottom: 12,
+          left: 12,
+          background: 'rgba(2,6,23,0.82)',
+          border: '1px solid #1e293b',
+          borderRadius: 8,
+          padding: '8px 10px',
+          fontSize: 11,
+          color: '#cbd5e1',
+          zIndex: 10,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 4,
+          minWidth: 130,
+        }}>
+          <div style={{ fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Legend</div>
+          <LegendDot color="#ef4444" label="Critical" />
+          <LegendDot color="#f59e0b" label="Warning" />
+          <LegendDot color="#6b7280" label="Normal" />
+          <LegendDot color="#38bdf8" label="Drone" />
+          <LegendLine color="#ef4444" label="Restricted zone" />
+          <LegendLine color="#38bdf8" dashed label="Patrol path" />
+          <LegendLine color="#a78bfa" dashed label="Predicted path" />
+          <LegendLine color="#94a3b8" label="History (5 min)" />
+          <LegendRing color="#fde047" label="Selected" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ width: 12, height: 12, borderRadius: '50%', background: color, border: '1.5px solid #fff', flexShrink: 0 }} />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function LegendLine({ color, label, dashed }: { color: string; label: string; dashed?: boolean }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ width: 14, height: 0, borderTop: `2px ${dashed ? 'dashed' : 'solid'} ${color}`, flexShrink: 0 }} />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function LegendRing({ color, label }: { color: string; label: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <span style={{ width: 12, height: 12, borderRadius: '50%', background: 'transparent', border: `2.5px solid ${color}`, flexShrink: 0 }} />
+      <span>{label}</span>
     </div>
   );
 }

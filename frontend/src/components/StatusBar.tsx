@@ -1,5 +1,9 @@
 import type { WsStatus } from '../api/websocket';
 
+function plural(n: number, singular: string, pluralForm = `${singular}s`): string {
+  return n === 1 ? singular : pluralForm;
+}
+
 interface Props {
   wsStatus: WsStatus;
   assetCount: number;
@@ -41,17 +45,17 @@ export default function StatusBar({ wsStatus, assetCount, zoneCount, activeDrone
 
       <span>
         <span style={{ color: '#f8fafc', fontWeight: 600 }}>{assetCount}</span>
-        {' '}assets
+        {' '}{plural(assetCount, 'asset')}
       </span>
 
       <span>
         <span style={{ color: '#f8fafc', fontWeight: 600 }}>{zoneCount}</span>
-        {' '}zones
+        {' '}{plural(zoneCount, 'zone')}
       </span>
 
       <span>
         <span style={{ color: activeDrones > 0 ? '#38bdf8' : '#f8fafc', fontWeight: 600 }}>{activeDrones}</span>
-        {' '}active drones
+        {' '}{plural(activeDrones, 'active drone')}
       </span>
 
       {lastUpdated && (

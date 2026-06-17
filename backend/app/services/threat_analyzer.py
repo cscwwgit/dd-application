@@ -5,6 +5,7 @@ from app.config import (
     HYSTERESIS_TICKS,
     PREDICTION_HORIZON_SECONDS,
     PROJECTION_STEP_SECONDS,
+    TTE_FINE_THRESHOLD_SECONDS,
     WARNING_TTE_THRESHOLD_SECONDS,
 )
 from app.models import AssetState, ThreatAssessment
@@ -49,21 +50,33 @@ def assess_asset(asset: AssetState, zones: list[dict]) -> ThreatAssessment:
                 reason=f"inside zone {zone['name']}",
             )
 
-    # Project forward to find earliest TTE
+    # Project forward to find earliest TTE. Project from the origin using
+    # cumulative distance (speed x t) so all samples stay consistent.
+    # Near-term window is scanned at 1-second resolution so the operator sees a
+    # live countdown; the longer horizon is sampled coarsely for efficiency.
     tte: float | None = None
     entry_zone_id: str | None = None
-    lat, lon = asset.lat, asset.lon
 
-    for step in range(PROJECTION_STEP_SECONDS, PREDICTION_HORIZON_SECONDS + PROJECTION_STEP_SECONDS, PROJECTION_STEP_SECONDS):
-        dist = asset.speed_mps * PROJECTION_STEP_SECONDS
-        lat, lon = project_point(lat, lon, asset.heading_deg, dist)
-        for zone in zones:
-            if point_in_zone(lat, lon, zone["geojson"]):
-                tte = float(step)
-                entry_zone_id = zone["id"]
-                break
-        if tte is not None:
+    for t in range(1, TTE_FINE_THRESHOLD_SECONDS + 1):
+        lat, lon = project_point(asset.lat, asset.lon, asset.heading_deg, asset.speed_mps * t)
+        entry_zone = next((z for z in zones if point_in_zone(lat, lon, z["geojson"])), None)
+        if entry_zone is not None:
+            tte = float(t)
+            entry_zone_id = entry_zone["id"]
             break
+
+    if tte is None:
+        for step in range(
+            TTE_FINE_THRESHOLD_SECONDS + PROJECTION_STEP_SECONDS,
+            PREDICTION_HORIZON_SECONDS + PROJECTION_STEP_SECONDS,
+            PROJECTION_STEP_SECONDS,
+        ):
+            lat, lon = project_point(asset.lat, asset.lon, asset.heading_deg, asset.speed_mps * step)
+            entry_zone = next((z for z in zones if point_in_zone(lat, lon, z["geojson"])), None)
+            if entry_zone is not None:
+                tte = float(step)
+                entry_zone_id = entry_zone["id"]
+                break
 
     nearest_id, nearest_dist = nearest_zone_distance_m(asset.lat, asset.lon, zones)
 

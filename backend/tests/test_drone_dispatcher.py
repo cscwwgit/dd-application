@@ -4,9 +4,10 @@ from datetime import datetime, timezone
 import pytest
 
 from app.config import DRONE_SHADOW_DISTANCE_M
-from app.models import AssetState, PatrolPath, PatrolWaypoint
+from app.models import AssetState, PatrolPath, PatrolPathCreate, PatrolWaypoint
 from app.services.drone_dispatcher import DroneDispatcher
 from app.services.geo import haversine_distance_m
+from app.services.patrol_service import PatrolService
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -195,3 +196,80 @@ def test_dispatch_shim_is_idempotent_for_same_asset():
 
     assert d1 is not None
     assert d2 is None
+
+
+def test_drone_reacquires_nearest_remaining_critical_target_when_current_target_clears():
+    """
+    Single-drone multi-target policy: the drone holds its current target while
+    critical, then reacquires the nearest remaining critical asset once the
+    current target clears — without dropping back to patrol while a breach stands.
+    """
+    patrol = make_patrol_path([(68.0, -100.0), (68.0, -90.0)])
+    dispatcher = DroneDispatcher()
+    dispatcher.initialize(patrol)
+
+    # asset-a is nearest to the drone's start; asset-b is further east. Both critical.
+    asset_a = make_asset("asset-a", lat=68.0, lon=-99.5, threat_level="critical")
+    asset_b = make_asset("asset-b", lat=68.0, lon=-95.0, threat_level="critical")
+
+    dispatcher.tick([asset_a, asset_b], patrol, dt=1.0)
+    drone = dispatcher.get_all_drones()[0]
+    assert drone.target_asset_id == "asset-a"
+    assert drone.status in ("intercepting", "shadowing")
+
+    # asset-a clears; asset-b remains critical → drone must reacquire asset-b.
+    asset_a_clear = make_asset("asset-a", lat=68.0, lon=-99.5, threat_level="normal")
+    dispatcher.tick([asset_a_clear, asset_b], patrol, dt=1.0)
+    drone = dispatcher.get_all_drones()[0]
+
+    assert drone.target_asset_id == "asset-b"
+    assert drone.status in ("intercepting", "shadowing")
+    assert drone.status != "patrolling"
+
+
+def test_replacing_patrol_path_changes_active_drone_route():
+    """
+    Replacing the patrol path must make the new path authoritative (guards the
+    regression where an operator path was dropped and the default remained).
+    The drone should begin routing toward the new path's waypoints.
+    """
+    patrol_svc = PatrolService()
+    default_path = patrol_svc.get_path()
+    default_waypoints = list(default_path.waypoints)
+
+    dispatcher = DroneDispatcher()
+    dispatcher.initialize(default_path)
+
+    # New route placed far from the default path so movement is unambiguous.
+    new_waypoints = [
+        PatrolWaypoint(lat=61.0, lon=-72.0),
+        PatrolWaypoint(lat=61.5, lon=-71.0),
+    ]
+    new_path = patrol_svc.set_path(
+        PatrolPathCreate(name="Operator Route", waypoints=new_waypoints)
+    )
+
+    active = patrol_svc.get_path()
+    assert active.id == new_path.id
+    assert active.id != default_path.id
+    assert active.waypoints == new_waypoints
+    assert active.waypoints != default_waypoints
+
+    drone_before = dispatcher.get_all_drones()[0]
+    dist_before = haversine_distance_m(
+        drone_before.lat, drone_before.lon, new_waypoints[0].lat, new_waypoints[0].lon
+    )
+
+    # Mirror the POST /patrol-path behavior, then advance with no critical assets.
+    dispatcher.reset_patrol()
+    for _ in range(3):
+        dispatcher.tick([], active, dt=10.0)
+
+    drone_after = dispatcher.get_all_drones()[0]
+    dist_after = haversine_distance_m(
+        drone_after.lat, drone_after.lon, new_waypoints[0].lat, new_waypoints[0].lon
+    )
+
+    assert drone_after.status in ("patrolling", "returning_to_patrol")
+    # Directional: the drone is moving toward the new route, not the old default.
+    assert dist_after < dist_before

@@ -45,17 +45,30 @@ export function initLayers(map: MapLibreMap): void {
     },
   });
 
-  // ── Selected asset highlight ──────────────────────────────────────
+  // ── Selected asset highlight (animated pulse + static ring) ───────
+  map.addLayer({
+    id: 'assets-selected-pulse',
+    type: 'circle',
+    source: 'assets',
+    filter: ['==', ['get', 'id'], ''],
+    paint: {
+      'circle-radius': 16,
+      'circle-color': 'transparent',
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#fde047',
+      'circle-stroke-opacity': 0.9,
+    },
+  });
   map.addLayer({
     id: 'assets-selected',
     type: 'circle',
     source: 'assets',
     filter: ['==', ['get', 'id'], ''],
     paint: {
-      'circle-radius': 14,
+      'circle-radius': 15,
       'circle-color': 'transparent',
-      'circle-stroke-width': 3,
-      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 4,
+      'circle-stroke-color': '#fde047',
     },
   });
 
@@ -73,17 +86,30 @@ export function initLayers(map: MapLibreMap): void {
     },
   });
 
-  // ── Selected drone highlight ──────────────────────────────────────
+  // ── Selected drone highlight (animated pulse + static ring) ───────
+  map.addLayer({
+    id: 'drones-selected-pulse',
+    type: 'circle',
+    source: 'drones',
+    filter: ['==', ['get', 'id'], ''],
+    paint: {
+      'circle-radius': 16,
+      'circle-color': 'transparent',
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#fde047',
+      'circle-stroke-opacity': 0.9,
+    },
+  });
   map.addLayer({
     id: 'drones-selected',
     type: 'circle',
     source: 'drones',
     filter: ['==', ['get', 'id'], ''],
     paint: {
-      'circle-radius': 14,
+      'circle-radius': 15,
       'circle-color': 'transparent',
-      'circle-stroke-width': 3,
-      'circle-stroke-color': DRONE_COLOR,
+      'circle-stroke-width': 4,
+      'circle-stroke-color': '#fde047',
     },
   });
 

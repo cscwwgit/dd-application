@@ -1,10 +1,11 @@
-import type { AssetState, DroneState } from '../api/types';
+import type { AssetState, DroneState, RestrictedZone } from '../api/types';
 import type { SelectedEntity } from '../hooks/useSelectedEntity';
 
 interface Props {
   selected: SelectedEntity | null;
   assets: AssetState[];
   drones: DroneState[];
+  zones: RestrictedZone[];
   onClose: () => void;
 }
 
@@ -14,6 +15,15 @@ function formatSeconds(s: number | null): string {
   const m = Math.floor(s / 60);
   const sec = Math.round(s % 60);
   return m > 0 ? `${m}m ${sec}s` : `${sec}s`;
+}
+
+function formatTTE(s: number | null): string {
+  if (s === null) return '—';
+  if (s === 0) return 'Breached';
+  const total = Math.round(s);
+  const m = Math.floor(total / 60);
+  const sec = total % 60;
+  return `${m}:${String(sec).padStart(2, '0')} (${total}s)`;
 }
 
 function formatDist(m: number | null): string {
@@ -60,7 +70,10 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function AssetDetails({ asset }: { asset: AssetState }) {
+function AssetDetails({ asset, zones }: { asset: AssetState; zones: RestrictedZone[] }) {
+  const nearestZone = asset.nearest_zone_id
+    ? zones.find((z) => z.id === asset.nearest_zone_id)
+    : null;
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -76,12 +89,28 @@ function AssetDetails({ asset }: { asset: AssetState }) {
       <Row label="Heading" value={`${asset.heading_deg.toFixed(1)}°`} />
       <Row label="Speed" value={formatSpeed(asset.speed_mps)} />
       <Row label="Altitude" value={asset.altitude_m != null ? `${Math.round(asset.altitude_m)} m` : '—'} />
-      <Row label="TTE" value={<span style={{ color: asset.tte_seconds === 0 ? '#ef4444' : asset.tte_seconds !== null && asset.tte_seconds <= 120 ? '#f59e0b' : '#e2e8f0' }}>{formatSeconds(asset.tte_seconds)}</span>} />
-      <Row label="Nearest Zone" value={asset.nearest_zone_id ?? '—'} />
+      <Row
+        label="TTE (time to entry)"
+        value={
+          <span style={{ color: asset.threat_level === 'critical' ? '#ef4444' : asset.tte_seconds !== null && asset.tte_seconds <= 120 ? '#f59e0b' : '#e2e8f0', fontWeight: 700 }}>
+            {asset.threat_level === 'critical' ? 'Breached' : formatTTE(asset.tte_seconds)}
+          </span>
+        }
+      />
       <Row label="Zone Distance" value={formatDist(asset.distance_to_nearest_zone_m)} />
+      <Row
+        label="Nearest Zone"
+        value={
+          <span title={asset.nearest_zone_id ?? undefined}>
+            {nearestZone?.name ?? (asset.nearest_zone_id ? 'Unknown zone' : '—')}
+          </span>
+        }
+      />
       <Row label="Last Update" value={new Date(asset.updated_at).toLocaleTimeString()} />
-      <div style={{ marginTop: 10, fontSize: 11, color: '#475569' }}>
-        Predicted path uses recent turn-rate estimate. TTE uses current vector.
+      <div style={{ marginTop: 10, fontSize: 11, color: '#64748b', lineHeight: 1.5 }}>
+        <div><span style={{ color: '#a78bfa', fontWeight: 600 }}>Predicted path</span> — recent turn-rate estimate over trajectory history.</div>
+        <div><span style={{ color: '#94a3b8', fontWeight: 600 }}>History path</span> — last 5 min of positions.</div>
+        <div>TTE uses the current heading/velocity vector.</div>
       </div>
     </div>
   );
@@ -122,7 +151,7 @@ function DroneDetails({ drone, assets }: { drone: DroneState; assets: AssetState
   );
 }
 
-export default function DetailsPanel({ selected, assets, drones, onClose }: Props) {
+export default function DetailsPanel({ selected, assets, drones, zones, onClose }: Props) {
   const asset = selected?.type === 'asset' ? assets.find((a) => a.id === selected.id) : null;
   const drone = selected?.type === 'drone' ? drones.find((d) => d.id === selected.id) : null;
 
@@ -148,7 +177,7 @@ export default function DetailsPanel({ selected, assets, drones, onClose }: Prop
           ✕
         </button>
       </div>
-      {asset && <AssetDetails asset={asset} />}
+      {asset && <AssetDetails asset={asset} zones={zones} />}
       {drone && <DroneDetails drone={drone} assets={assets} />}
     </div>
   );
