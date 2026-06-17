@@ -5,11 +5,11 @@ import type { AssetState, DroneState, HistoryPoint, PatrolPath, PredictedPoint, 
 import type { SelectedEntity } from '../hooks/useSelectedEntity';
 import {
   assetsToGeoJSON,
-  dronesToGeoJSON,
   historyToGeoJSON,
   predictedToGeoJSON,
   zonesToGeoJSON,
 } from '../map/geojson';
+import { computeDroneDisplay } from '../map/shadow';
 import {
   clearSelectedFilter,
   initLayers,
@@ -396,19 +396,43 @@ export default function MapView({
     updateSource(map, 'patrol-path', { type: 'FeatureCollection', features });
   }, [patrolPath, mapReady]);
 
-  // ── Update asset source on every tick ────────────────────────────
+  // ── Shadow-display recompute (screen-space, depends on current view) ──
+  const dronesRef = useRef<DroneState[]>([]);
+  const assetsRef = useRef<AssetState[]>([]);
+
+  const recomputeDroneDisplay = useCallback(() => {
+    const map = mapRef.current;
+    if (!map || !layersReadyRef.current) return;
+    const { drones: droneFC, links } = computeDroneDisplay(map, dronesRef.current, assetsRef.current);
+    updateSource(map, 'drones', droneFC);
+    updateSource(map, 'shadow-link', links);
+  }, []);
+
+  // ── Update asset source on every tick (also nudges any shadowed drones) ──
   useEffect(() => {
+    assetsRef.current = assets;
     const map = mapRef.current;
     if (!map || !layersReadyRef.current) return;
     updateSource(map, 'assets', assetsToGeoJSON(assets));
-  }, [assets, mapReady]);
+    recomputeDroneDisplay();
+  }, [assets, mapReady, recomputeDroneDisplay]);
 
-  // ── Update drone source ───────────────────────────────────────────
+  // ── Update drone source (display coords resolved by recompute) ──────
+  useEffect(() => {
+    dronesRef.current = drones;
+    recomputeDroneDisplay();
+  }, [drones, mapReady, recomputeDroneDisplay]);
+
+  // ── Recompute display offsets on pan/zoom so positions converge at high zoom ──
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !layersReadyRef.current) return;
-    updateSource(map, 'drones', dronesToGeoJSON(drones));
-  }, [drones, mapReady]);
+    if (!map || !mapReady) return;
+    const handler = () => recomputeDroneDisplay();
+    map.on('move', handler);
+    return () => {
+      map.off('move', handler);
+    };
+  }, [mapReady, recomputeDroneDisplay]);
 
   // ── Update zone source ────────────────────────────────────────────
   useEffect(() => {
@@ -670,6 +694,7 @@ export default function MapView({
           <LegendDot color="#f59e0b" label="Warning" />
           <LegendDot color="#6b7280" label="Normal" />
           <LegendDot color="#38bdf8" label="Drone" />
+          <LegendLine color="#22d3ee" dashed label="Shadow link" />
           <LegendLine color="#ef4444" label="Restricted zone" />
           <LegendLine color="#38bdf8" dashed label="Patrol path" />
           <LegendLine color="#a78bfa" dashed label="Predicted path" />

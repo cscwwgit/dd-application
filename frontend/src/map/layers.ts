@@ -9,6 +9,7 @@ export const THREAT_COLOR_EXPR = [
 ] as unknown as maplibregl.ExpressionSpecification;
 
 export const DRONE_COLOR = '#38bdf8'; // sky blue
+export const SHADOW_LINK_COLOR = '#22d3ee'; // cyan — drone-to-target shadow link
 
 export function initLayers(map: MapLibreMap): void {
   // ── Restricted zones ─────────────────────────────────────────────
@@ -24,6 +25,21 @@ export function initLayers(map: MapLibreMap): void {
     type: 'line',
     source: 'zones',
     paint: { 'line-color': '#ef4444', 'line-width': 2 },
+  });
+
+  // ── Shadow link (cyan line from shadowed asset to displayed drone) ──
+  // Beneath the markers so both endpoints sit on top of the line.
+  map.addSource('shadow-link', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+  map.addLayer({
+    id: 'shadow-link-line',
+    type: 'line',
+    source: 'shadow-link',
+    paint: {
+      'line-color': SHADOW_LINK_COLOR,
+      'line-width': 1.2,
+      'line-opacity': 0.85,
+      'line-dasharray': [2, 2],
+    },
   });
 
   // ── Assets ────────────────────────────────────────────────────────
@@ -42,33 +58,6 @@ export function initLayers(map: MapLibreMap): void {
       'circle-stroke-width': 1.5,
       'circle-stroke-color': '#ffffff',
       'circle-opacity': 0.9,
-    },
-  });
-
-  // ── Selected asset highlight (animated pulse + static ring) ───────
-  map.addLayer({
-    id: 'assets-selected-pulse',
-    type: 'circle',
-    source: 'assets',
-    filter: ['==', ['get', 'id'], ''],
-    paint: {
-      'circle-radius': 16,
-      'circle-color': 'transparent',
-      'circle-stroke-width': 2,
-      'circle-stroke-color': '#fde047',
-      'circle-stroke-opacity': 0.9,
-    },
-  });
-  map.addLayer({
-    id: 'assets-selected',
-    type: 'circle',
-    source: 'assets',
-    filter: ['==', ['get', 'id'], ''],
-    paint: {
-      'circle-radius': 15,
-      'circle-color': 'transparent',
-      'circle-stroke-width': 4,
-      'circle-stroke-color': '#fde047',
     },
   });
 
@@ -104,6 +93,34 @@ export function initLayers(map: MapLibreMap): void {
     id: 'drones-selected',
     type: 'circle',
     source: 'drones',
+    filter: ['==', ['get', 'id'], ''],
+    paint: {
+      'circle-radius': 15,
+      'circle-color': 'transparent',
+      'circle-stroke-width': 4,
+      'circle-stroke-color': '#fde047',
+    },
+  });
+
+  // ── Selected asset highlight (added after drones so a selected asset's ──
+  //    ring renders ABOVE drone markers, keeping critical assets visible) ──
+  map.addLayer({
+    id: 'assets-selected-pulse',
+    type: 'circle',
+    source: 'assets',
+    filter: ['==', ['get', 'id'], ''],
+    paint: {
+      'circle-radius': 16,
+      'circle-color': 'transparent',
+      'circle-stroke-width': 2,
+      'circle-stroke-color': '#fde047',
+      'circle-stroke-opacity': 0.9,
+    },
+  });
+  map.addLayer({
+    id: 'assets-selected',
+    type: 'circle',
+    source: 'assets',
     filter: ['==', ['get', 'id'], ''],
     paint: {
       'circle-radius': 15,

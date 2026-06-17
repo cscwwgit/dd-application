@@ -1,4 +1,4 @@
-import type { AssetState, DroneState, HistoryPoint, PredictedPoint, RestrictedZone } from '../api/types';
+import type { AssetState, HistoryPoint, PredictedPoint, RestrictedZone } from '../api/types';
 
 export function assetsToGeoJSON(assets: AssetState[]): GeoJSON.FeatureCollection {
   return {
@@ -18,25 +18,6 @@ export function assetsToGeoJSON(assets: AssetState[]): GeoJSON.FeatureCollection
         distance_to_nearest_zone_m: a.distance_to_nearest_zone_m,
         nearest_zone_id: a.nearest_zone_id,
         updated_at: a.updated_at,
-      },
-    })),
-  };
-}
-
-export function dronesToGeoJSON(drones: DroneState[]): GeoJSON.FeatureCollection {
-  return {
-    type: 'FeatureCollection',
-    features: drones.map((d) => ({
-      type: 'Feature',
-      geometry: { type: 'Point', coordinates: [d.lon, d.lat] },
-      properties: {
-        id: d.id,
-        status: d.status,
-        target_asset_id: d.target_asset_id,
-        origin_base_id: d.origin_base_id,
-        speed_mps: d.speed_mps,
-        intercept_seconds: d.intercept_seconds,
-        updated_at: d.updated_at,
       },
     })),
   };

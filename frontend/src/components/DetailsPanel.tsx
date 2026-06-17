@@ -70,10 +70,13 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function AssetDetails({ asset, zones }: { asset: AssetState; zones: RestrictedZone[] }) {
+function AssetDetails({ asset, zones, drones }: { asset: AssetState; zones: RestrictedZone[]; drones: DroneState[] }) {
   const nearestZone = asset.nearest_zone_id
     ? zones.find((z) => z.id === asset.nearest_zone_id)
     : null;
+  const shadowingDrone = drones.find(
+    (d) => d.status === 'shadowing' && d.target_asset_id === asset.id,
+  );
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
@@ -106,6 +109,16 @@ function AssetDetails({ asset, zones }: { asset: AssetState; zones: RestrictedZo
           </span>
         }
       />
+      {shadowingDrone && (
+        <Row
+          label="Drone Coverage"
+          value={
+            <span title={shadowingDrone.id} style={{ color: '#22d3ee', fontWeight: 600 }}>
+              Shadowed by {shadowingDrone.id.slice(0, 8)}
+            </span>
+          }
+        />
+      )}
       <Row label="Last Update" value={new Date(asset.updated_at).toLocaleTimeString()} />
       <div style={{ marginTop: 10, fontSize: 11, color: '#64748b', lineHeight: 1.5 }}>
         <div><span style={{ color: '#a78bfa', fontWeight: 600 }}>Predicted path</span> — recent turn-rate estimate over trajectory history.</div>
@@ -177,7 +190,7 @@ export default function DetailsPanel({ selected, assets, drones, zones, onClose 
           ✕
         </button>
       </div>
-      {asset && <AssetDetails asset={asset} zones={zones} />}
+      {asset && <AssetDetails asset={asset} zones={zones} drones={drones} />}
       {drone && <DroneDetails drone={drone} assets={assets} />}
     </div>
   );

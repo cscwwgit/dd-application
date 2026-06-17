@@ -500,6 +500,10 @@ The assessment requires an autonomous drone that follows a patrol path and shado
 
 I did not implement full multi-drone fleet dispatch, base inventory, fuel/range constraints, or manual retasking because those are substantial product features on their own. The design leaves those as natural production extensions.
 
+### Shadowing Symbology
+
+When a drone is shadowing an asset, the two entities can visually overlap at low zoom. The backend keeps true drone and asset coordinates, but the frontend applies a display-only screen-space offset when markers would collide and renders a cyan shadow-link line between them. At higher zoom levels, the drone marker converges back to its true coordinate.
+
 ---
 
 ## Persistence Model
